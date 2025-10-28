@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     siteName: 'PanPredict',
     title: 'PanPredict — Points-only prediction game',
     description: 'Trade YES/NO shares on social events with friends. No money, points only.',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'PanPredict' }],
+    images: [{ url: 'c:\Users\geree\OneDrive\Desktop\panpredict-favicon-pack\favicon.ico', width: 1200, height: 630, alt: 'PanPredict' }],
   },
   twitter: {
     card: 'summary_large_image',
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     description: 'Points-only prediction game',
     images: ['c:\Users\geree\OneDrive\Desktop\panpredict-favicon-pack\favicon.ico'],
   },
-  icons: { icon: '/favicon.ico' },
+  icons: { icon: 'c:\Users\geree\OneDrive\Desktop\panpredict-favicon-pack\favicon.ico' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

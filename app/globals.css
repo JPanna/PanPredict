@@ -5,12 +5,38 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@import "tailwindcss";
+
+/* Tailwind v4 tokens */
+@theme {
+  /* Colors */
+  --color-okx-bg:      #0B0C10;
+  --color-okx-surface: #0F1115;
+  --color-okx-border:  #1B1E24;
+  --color-okx-text:    #E6E8EC;
+  --color-okx-sub:     #9BA3AF;
+  --color-okx-lime:    #B8FF00;
+  --color-okx-good:    #58FF6D;
+  --color-okx-bad:     #FF4D6D;
+
+  /* Extras */
+  --radius-xl2: 1.25rem;
+  --shadow-glow: 0 0 0 4px rgb(184 255 0 / 0.12);
 }
+
+/* Dark app base */
+:root { color-scheme: dark; }
+html, body { background:#0B0C10; color:#E6E8EC; }
+* { outline: none; }
+a { color: inherit; text-decoration: none; }
+
+html, body {
+  background: var(--color-okx-bg);
+  color: var(--color-okx-text);
+}
+
+/* You can still use @apply with Tailwind utilities */
+
 
 @media (prefers-color-scheme: dark) {
   :root {

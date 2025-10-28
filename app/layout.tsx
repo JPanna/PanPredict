@@ -30,12 +30,31 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-neutral-950 text-neutral-100">
-        <header className="border-b border-neutral-800 p-3 flex justify-between">
-          <a href="/" className="font-semibold">PanPredict</a>
-          <AuthStatus />
-        </header>
-        <main className="p-4">{children}</main>
+      <body className="min-h-dvh bg-okx-bg text-okx-text">
+        <div className="mx-auto max-w-md min-h-dvh flex flex-col">
+          {/* Top bar */}
+          <header className="sticky top-0 z-40 px-4 py-3 bg-okx-bg/70 backdrop-blur border-b border-okx-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-okx-lime" />
+                <span className="font-semibold">PanPredict</span>
+              </div>
+              <a href="/portfolio" className="text-sm text-okx-sub">Portfolio</a>
+            </div>
+          </header>
+
+          {/* Page */}
+          <main className="flex-1 px-4 py-4">{children}</main>
+
+          {/* Bottom nav */}
+          <nav className="sticky bottom-0 z-40 border-t border-okx-border bg-okx-bg/80 backdrop-blur">
+            <div className="mx-auto max-w-md grid grid-cols-3 text-sm">
+              <a href="/" className="py-3 text-center">Markets</a>
+              <a href="/new" className="py-3 text-center text-okx-lime">Create</a>
+              <a href="/profile" className="py-3 text-center">Me</a>
+            </div>
+          </nav>
+        </div>
       </body>
     </html>
   )

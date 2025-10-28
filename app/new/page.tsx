@@ -1,138 +1,151 @@
 'use client'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-// pretty text for the lock slider (minutes → human)
-function fmtLock(m: number) {
-  const h = Math.floor(m / 60)
-  const d = Math.floor(h / 24)
-  if (m < 60) return `${m}m`
-  if (h < 24) return `${h}h${m % 60 ? ` ${m % 60}m` : ''}`
-  return `${d}d${h % 24 ? ` ${h % 24}h` : ''}`
-}
+type MarketType = 'binary' | 'over_under' | 'moneyline'
 
-// local "now" in YYYY-MM-DDTHH:mm for <input type="datetime-local">
-function nowLocalIso() {
-  const d = new Date()
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().slice(0, 16)
-}
+export default function NewEventPage() {
+  const router = useRouter()
+  const supabase = createClientComponentClient()
 
-export default function NewEvent() {
-  const r = useRouter()
   const [title, setTitle] = useState('')
-  const [desc, setDesc] = useState('')
-  const [resolveLocal, setResolveLocal] = useState('')
-  const [lock, setLock] = useState(2880) // default 2 days (in minutes)
+  const [desc, setDesc] = useState<string>('')
+  const [resolveLocal, setResolveLocal] = useState<string>('')  // yyyy-MM-ddTHH:mm
+  const [lockLocal, setLockLocal] = useState<string>('')        // yyyy-MM-ddTHH:mm
+  const [type, setType] = useState<MarketType>('binary')
+  const [threshold, setThreshold] = useState<number | ''>('')
+
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  async function create() {
+  function toIso(local: string) {
+    // local from <input type="datetime-local"> is local time; convert to ISO UTC string
+    if (!local) return null
+    const d = new Date(local)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toISOString()
+  }
+
+  async function createEvent() {
     setMsg(null)
+    if (!title.trim()) { setMsg('Title is required'); return }
+    const resolveIso = toIso(resolveLocal)
+    const lockIso    = toIso(lockLocal)
+    if (!resolveIso || !lockIso) { setMsg('Pick both resolve and lock time'); return }
+    if (new Date(lockIso) >= new Date(resolveIso)) {
+      setMsg('Lock time must be before resolve time')
+      return
+    }
+
     setLoading(true)
     try {
-      // must be signed in
-      const { data: { user }, error: uerr } = await supabase.auth.getUser()
-      if (uerr || !user) throw new Error('Please sign in first')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Please sign in first')
 
-      // ensure a profile row exists (in case trigger ran after your signup)
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        handle: (user.email ?? 'user').split('@')[0],
-      })
-
-      // resolve time
-      if (!resolveLocal) throw new Error('Pick a resolve time')
-      const resolveDate = new Date(resolveLocal)
-      if (Number.isNaN(resolveDate.getTime())) throw new Error('Pick a valid resolve time')
-
-      // lock window (1 minute → 1 month)
-      const minutes = Math.max(1, Math.min(43200, Math.floor(lock)))
-      const lockDate = new Date(resolveDate.getTime() - minutes * 60 * 1000)
-
-      // create event
-      const { data: event, error } = await supabase
+      // Insert the event and RETURN its id so we can redirect
+      const { data: ev, error } = await supabase
         .from('events')
         .insert({
-          title,
-          description: desc || null,
-          lock_time: lockDate.toISOString(),
-          resolve_time: resolveDate.toISOString(),
-          resolver_id: user.id,
-          status: 'trading',
+          title: title.trim(),
+          description: desc.trim() || null,
+          resolve_time: resolveIso,
+          lock_time   : lockIso,
+          status      : 'trading',
+          created_by  : user.id,                          // ⭐ IMPORTANT
+          // You can comment these two out if you haven’t added the columns yet
+          market_type : type,                              // 'binary' | 'over_under' | 'moneyline'
+          threshold   : type === 'over_under' && threshold !== '' ? Number(threshold) : null,
         })
-        .select()
+        .select('id')
         .single()
+
       if (error) throw error
 
-      // init LMSR state
-      const { error: e2 } = await supabase
-        .from('lmsr_state')
-        .insert({ event_id: event.id, b: 200 })
-      if (e2) throw e2
+      // For now we rely on the SQL seed to create YES/NO choices for binary markets.
+      // If you later add Over/Under or Moneyline choices, you can insert them here.
 
-      // go to market
-      r.push(`/events/${event.id}`)
+      setMsg('Event created')
+      router.push(`/events/${ev.id}`)
     } catch (e: any) {
-      setMsg(e.message ?? String(e))
+      setMsg(e.message ?? 'Create failed')
     } finally {
       setLoading(false)
     }
   }
 
+  const nowFloor = new Date(Date.now() - new Date().getTimezoneOffset()*60000)
+    .toISOString().slice(0,16)
+
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-xl mx-auto p-4 md:p-6">
       <h1 className="text-2xl font-semibold mb-4">Create event</h1>
 
       <input
-        className="w-full p-2 rounded bg-neutral-900 border border-neutral-700 mb-3"
+        className="w-full p-2 rounded bg-neutral-900 border border-okx-border mb-3"
         placeholder="Will Team X win?"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={e=>setTitle(e.target.value)}
       />
 
       <textarea
-        className="w-full p-2 rounded bg-neutral-900 border border-neutral-700 mb-3"
+        className="w-full p-2 rounded bg-neutral-900 border border-okx-border mb-3"
         rows={3}
         placeholder="Resolution criteria…"
         value={desc}
-        onChange={(e) => setDesc(e.target.value)}
+        onChange={e=>setDesc(e.target.value)}
       />
 
-      <label className="block text-sm mb-1">Resolve time</label>
+      {/* Optional: market type + threshold (safe to keep; defaults to binary) */}
+      <label className="block text-sm text-neutral-400 mb-1">Market type</label>
+      <select
+        className="w-full p-2 rounded bg-neutral-900 border border-okx-border mb-3"
+        value={type}
+        onChange={e=>setType(e.target.value as MarketType)}
+      >
+        <option value="binary">Yes / No</option>
+        <option value="over_under">Over / Under</option>
+        <option value="moneyline">Moneyline (2–3 outcomes)</option>
+      </select>
+
+      {type === 'over_under' && (
+        <input
+          type="number"
+          className="w-full p-2 rounded bg-neutral-900 border border-okx-border mb-3"
+          placeholder="Threshold (e.g., 2.5 goals)"
+          value={threshold}
+          onChange={e=>setThreshold(e.target.value === '' ? '' : Number(e.target.value))}
+        />
+      )}
+
+      <label className="block text-sm text-neutral-400 mb-1">Resolve time</label>
       <input
         type="datetime-local"
-        step="60"
-        min={nowLocalIso()}
-        className="w-full p-2 rounded bg-neutral-900 border border-neutral-700 mb-4"
+        min={nowFloor}
+        className="w-full p-2 rounded bg-neutral-900 border border-okx-border mb-3"
         value={resolveLocal}
-        onChange={(e) => setResolveLocal(e.target.value)}
+        onChange={e=>setResolveLocal(e.target.value)}
       />
 
-      <div className="flex justify-between text-sm">
-        <span>Lock before resolve</span>
-        <span className="text-neutral-400">{fmtLock(lock)}</span>
-      </div>
+      <label className="block text-sm text-neutral-400 mb-1">Lock time</label>
       <input
-        type="range"
-        min={1}
-        max={43200}
-        step={1}
-        value={lock}
-        onChange={(e) => setLock(Number(e.target.value))}
-        className="w-full mb-4 accent-indigo-500"
+        type="datetime-local"
+        min={nowFloor}
+        className="w-full p-2 rounded bg-neutral-900 border border-okx-border mb-4"
+        value={lockLocal}
+        onChange={e=>setLockLocal(e.target.value)}
       />
 
       <button
-        disabled={!title || !resolveLocal || loading}
-        onClick={create}
-        className="w-full bg-indigo-600 text-white py-2 rounded"
+        onClick={createEvent}
+        disabled={loading}
+        className="w-full rounded-lg px-4 py-2 bg-indigo-600 disabled:bg-neutral-700"
       >
         {loading ? 'Creating…' : 'Create'}
       </button>
 
-      {msg && <p className="mt-2 text-red-400 text-sm">{msg}</p>}
+      {msg && <p className="text-sm text-neutral-300 mt-3">{msg}</p>}
     </div>
   )
 }

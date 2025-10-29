@@ -25,7 +25,6 @@ export default function MeClient() {
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  // ---- helpers ----
   const yesPrice = (st?: StateRow): number => {
     if (!st) return 0.5
     const { b, q_yes, q_no } = st
@@ -35,7 +34,6 @@ export default function MeClient() {
     return ey / (ey + en)
   }
 
-  // total estimated value of positions at current prices
   const totalValue = useMemo(() => {
     if (!positions?.length) return 0
     let sum = 0
@@ -48,7 +46,6 @@ export default function MeClient() {
     return Math.round(sum * 100) / 100
   }, [positions, stateByEvent])
 
-  // ---- load user + wallet + positions ----
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -56,7 +53,6 @@ export default function MeClient() {
         setErr(null)
         setLoading(true)
 
-        // who am I
         const { data: { user } } = await supabase.auth.getUser()
         if (!alive) return
         if (!user) {
@@ -68,19 +64,15 @@ export default function MeClient() {
         setUserId(user.id)
         setUserEmail(user.email ?? null)
 
-        // wallet (create default if missing)
-        const { data: w, error: wErr } = await supabase
+        const { data: w } = await supabase
           .from('wallets')
           .select('points')
           .eq('user_id', user.id)
           .single<WalletRow>()
-
         if (!alive) return
 
-        if (w) {
-          setPoints(Number(w.points))
-        } else {
-          // no row found => create one with 1000 points
+        if (w) setPoints(Number(w.points))
+        else {
           const { data: w2, error: insErr } = await supabase
             .from('wallets')
             .insert({ user_id: user.id, points: 1000 })
@@ -90,14 +82,12 @@ export default function MeClient() {
           setPoints(Number(w2?.points ?? 1000))
         }
 
-        // positions
         const { data: pos, error: pErr } = await supabase
           .from('positions')
           .select('event_id, side, qty')
           .eq('user_id', user.id)
           .returns<PositionRow[]>()
         if (pErr) throw pErr
-
         setPositions(pos ?? [])
 
         const ids = (pos ?? []).map(p => p.event_id)
@@ -108,26 +98,22 @@ export default function MeClient() {
           return
         }
 
-        // events
         const { data: evs, error: eErr } = await supabase
           .from('events')
           .select('id, title, status')
           .in('id', ids)
           .returns<EventRow[]>()
         if (eErr) throw eErr
-
         const evMap: Record<string, EventRow> = {}
         for (const e of evs ?? []) evMap[e.id] = e
         setEventsById(evMap)
 
-        // state rows
         const { data: sts, error: sErr } = await supabase
           .from('lmsr_state')
           .select('event_id, b, q_yes, q_no')
           .in('event_id', ids)
           .returns<StateRow[]>()
         if (sErr) throw sErr
-
         const stMap: Record<string, StateRow> = {}
         for (const s of sts ?? []) stMap[s.event_id] = s
         setStateByEvent(stMap)
@@ -142,10 +128,7 @@ export default function MeClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function refreshAll() {
-    // simple reload to re-run effect
-    location.reload()
-  }
+  async function refreshAll() { location.reload() }
 
   async function sendMagicLink() {
     setMsg(null)
@@ -156,7 +139,7 @@ export default function MeClient() {
         options: { emailRedirectTo: `${location.origin}/me` },
       })
       if (error) throw error
-      setMsg('Check your email for a sign-in link.')
+      setMsg('Check your email for a sign in link.')
     } catch (e: any) {
       setMsg(e.message ?? 'Failed to send magic link')
     }
@@ -167,10 +150,8 @@ export default function MeClient() {
     location.reload()
   }
 
-  // ---------- RENDER ----------
   if (loading) return <div className="p-6">Loading…</div>
 
-  // Signed-out
   if (!userId) {
     return (
       <div className="max-w-md mx-auto p-6">
@@ -192,16 +173,11 @@ export default function MeClient() {
           Send magic link
         </button>
 
-        {msg && (
-          <p className="text-sm mt-3" style={{ color: 'rgb(129, 230, 56)' }}>
-            {msg}
-          </p>
-        )}
+        {msg && <p className="text-sm mt-3" style={{ color: 'rgb(129, 230, 56)' }}>{msg}</p>}
       </div>
     )
   }
 
-  // Signed-in
   return (
     <div className="max-w-xl mx-auto p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -214,37 +190,29 @@ export default function MeClient() {
         </button>
       </div>
 
-      {err && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">
-          {err}
-        </div>
-      )}
+      {err && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm">{err}</div>}
 
-      {/* Identity */}
       <div className="rounded-xl border border-okx-border p-4">
         <div className="text-sm text-neutral-400">Signed in as</div>
         <div className="text-lg break-all">{userEmail ?? userId}</div>
       </div>
 
-      {/* Wallet */}
       <div className="rounded-xl border border-okx-border p-4 flex items-center justify-between">
         <div>
           <div className="text-sm text-neutral-400">Points</div>
           <div className="text-2xl">{points ?? '—'}</div>
         </div>
-        <Link
-          href="/portfolio"
-          className="px-3 py-2 rounded-lg border border-okx-border hover:bg-neutral-800"
-        >
+        <Link href="/portfolio" className="px-3 py-2 rounded-lg border border-okx-border hover:bg-neutral-800">
           Portfolio
         </Link>
       </div>
 
-      {/* Positions */}
       <div className="rounded-xl border border-okx-border p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="font-medium">Your Positions</div>
-          <div className="text-sm text-neutral-400">Est. value: {totalValue}</div>
+          <div className="text-sm text-neutral-400">Est. value: {
+            useMemo(()=> totalValue, [totalValue])
+          }</div>
         </div>
 
         {!positions.length ? (

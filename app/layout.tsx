@@ -1,64 +1,57 @@
-// app/layout.tsx
 import './globals.css'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-
+import Image from 'next/image'
 import BottomNav from './components/BottomNav'
 import AuthStatus from './components/AuthStatus'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://pan-predict.vercel.app'),
-  title: {
-    default: 'PanPredict',
-    template: '%s · PanPredict',
-  },
+  title: 'PanPredict',
   description: 'Points-only prediction game',
+  icons: {
+    icon: '/favicon.ico',            // keep a 32x32 .ico for the tab
+    shortcut: '/favicon.ico',
+    apple: '/panpredict-logo.svg',   // iOS homescreen
+  },
   openGraph: {
-    type: 'website',
-    url: 'https://pan-predict.vercel.app',
-    siteName: 'PanPredict',
-    title: 'PanPredict — Points-only prediction game',
-    description:
-      'Trade YES/NO shares on social events with friends. No money, points only.',
-    // Put an OG image in /public if you have one (e.g., /og.png). Fallback to favicon.
-    images: [{ url: '/favicon.ico' }],
+    title: 'PanPredict',
+    description: 'Points-only prediction game',
+    images: ['/panpredict-logo.svg'],  // (better: a 1200×630 OG image later)
   },
   twitter: {
     card: 'summary',
-    title: 'PanPredict',
-    description: 'Points-only prediction game',
-    images: ['/favicon.ico'],
+    images: ['/panpredict-logo.svg'],
   },
-  icons: { icon: '/favicon.ico' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-okx-bg text-okx-text">
-        <div className="mx-auto max-w-md min-h-[100dvh] flex flex-col">
+      <body className="bg-black text-white">
+        <div className="mx-auto max-w-screen-sm min-h-[100dvh] flex flex-col">
           {/* Top bar */}
-          <header className="sticky top-0 z-40 bg-okx-bg/70 backdrop-blur border-b border-okx-border">
-            <div className="h-12 px-4 flex items-center justify-between">
+          <header className="sticky top-0 z-40 border-b border-okx-border bg-black/90 backdrop-blur">
+            <div className="flex items-center justify-between px-4 h-12">
               <Link href="/" className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 rounded bg-okx-lime inline-block" />
+                <Image
+                  src="/panpredict-logo.svg"
+                  alt="PanPredict"
+                  width={24}
+                  height={24}
+                  priority
+                />
                 <span className="font-semibold">PanPredict</span>
               </Link>
 
-              <div className="flex items-center gap-3">
-                <Link
-                  href="/portfolio"
-                  className="text-sm text-okx-sub hover:text-white"
-                >
-                  Portfolio
-                </Link>
+              <div className="flex items-center gap-4">
+                <Link href="/portfolio" className="text-sm">Portfolio</Link>
                 <AuthStatus />
               </div>
             </div>
           </header>
 
-          {/* Page content (pad bottom so it doesn't hide under bottom nav) */}
-          <main className="flex-1 px-4 py-4 pb-16">{children}</main>
+          {/* Page content */}
+          <main className="flex-1 pb-16">{children}</main>
 
           {/* Bottom nav */}
           <BottomNav />

@@ -1,26 +1,46 @@
 'use client'
+
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import Link from 'next/link'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function AuthStatus() {
+  const supabase = createClientComponentClient()
   const [email, setEmail] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
-      setEmail(session?.user?.email ?? null)
-    )
-    return () => sub.subscription.unsubscribe()
+    let alive = true
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!alive) return
+      setEmail(user?.email ?? null)
+      setLoading(false)
+    })()
+    return () => { alive = false }
   }, [])
 
-  async function signOut() { await supabase.auth.signOut(); location.reload() }
+  if (loading) return null
 
-  return email ? (
-    <div className="text-sm flex items-center gap-2">
-      <span>{email}</span>
-      <button onClick={signOut} className="px-2 py-1 bg-neutral-800 rounded">Sign out</button>
+  if (!email) {
+    // Signed-out: show a subtle link, not a big “Please sign in”
+    return (
+      <Link href="/me" className="text-sm text-okx-sub hover:text-white">
+        Sign in
+      </Link>
+    )
+  }
+
+  // Signed-in
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm">{email}</span>
+      <button
+        onClick={async () => { await supabase.auth.signOut(); location.reload() }}
+        className="text-xs border border-okx-border rounded px-2 py-1 hover:bg-neutral-800"
+      >
+        Sign out
+      </button>
     </div>
-  ) : (
-    <a className="px-2 py-1 bg-indigo-600 text-white rounded" href="/login">Sign in</a>
   )
 }

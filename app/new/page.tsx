@@ -138,12 +138,13 @@ export default function NewEventPage() {
       />
 
       <button
-        onClick={createEvent}
-        disabled={loading}
-        className="w-full rounded-lg px-4 py-2 bg-indigo-600 disabled:bg-neutral-700"
-      >
-        {loading ? 'Creating…' : 'Create'}
-      </button>
+  type="button"
+  onClick={createEvent}   // keep your handler
+  className="btn btn-create w-full"
+  disabled={loading}
+>
+  {loading ? 'Creating…' : 'Create'}
+</button>
 
       {msg && <p className="text-sm text-neutral-300 mt-3">{msg}</p>}
     </div>

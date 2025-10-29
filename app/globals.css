@@ -1,62 +1,75 @@
 @import "tailwindcss";
 
-/* ──────────────────────────────────────────────────────────────
-   Tailwind v4 design tokens (generate text-*, bg-*, border-* utilities)
-   ────────────────────────────────────────────────────────────── */
-@theme {
-  /* OKX palette */
-  --color-okx-bg:      #0B0C10;
-  --color-okx-surface: #0F1115;
-  --color-okx-border:  #1B1E24;
-  --color-okx-text:    #E6E8EC;
-  --color-okx-sub:     #9BA3AF;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  /* Brand lime (also available as text-brand, bg-brand, border-brand) */
-  --color-okx-lime: rgb(129 230 56);
-  --color-brand:     rgb(129 230 56);
-
-  /* Extras */
-  --radius-xl2: 1.25rem;
-}
-
-/* ──────────────────────────────────────────────────────────────
-   App base
-   ────────────────────────────────────────────────────────────── */
+/* ---------- Base (dark) + palette ---------- */
 :root { color-scheme: dark; }
 
+/* OKX-style surface + text */
+:root {
+  --okx-bg:#0B0C10;
+  --okx-surface:#0F1115;
+  --okx-border:#1B1E24;
+  --okx-text:#E6E8EC;
+  --okx-sub:#9BA3AF;
+
+  /* Your requested button colors */
+  --buy-text:  #a9e629;      /* rgb(169,230,41)  */
+  --buy-bg:    #1a2500;      /* rgb(26,37,0)     */
+
+  --sell-text: #f945a9;      /* rgb(249,69,169)  */
+  --sell-bg:   #29111f;      /* rgb(41,17,31)    */
+
+  --create-text:#a9e629;     /* rgb(169,230,41)  */
+  --create-bg:  #1a2500;     /* rgb(26,37,0)     */
+
+  --ring-buy:  0 0 0 4px color-mix(in srgb, var(--buy-text) 30%, transparent);
+  --ring-sell: 0 0 0 4px color-mix(in srgb, var(--sell-text) 30%, transparent);
+  --ring-create:0 0 0 4px color-mix(in srgb, var(--create-text) 30%, transparent);
+}
+
 html, body {
-  background: var(--color-okx-bg);
-  color: var(--color-okx-text);
+  background: var(--okx-bg);
+  color: var(--okx-text);
 }
 
-* { outline: none; }
 a { color: inherit; text-decoration: none; }
+* { outline: none; }
 
-/* ──────────────────────────────────────────────────────────────
-   Optional helper classes (use alongside Tailwind utilities)
-   ────────────────────────────────────────────────────────────── */
-.okx-card {
-  background: var(--color-okx-surface);
-  border: 1px solid var(--color-okx-border);
-  border-radius: var(--radius-xl2);
-}
+/* ---------- Reusable button primitives ---------- */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center font-medium rounded-lg px-4 py-2 border transition-colors duration-150;
+    border-color: transparent;
+  }
 
-.okx-input {
-  background: transparent;
-  border: 1px solid var(--color-okx-border);
-  border-radius: .5rem;
-}
-.okx-input:focus-visible {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-brand), transparent 85%);
-}
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 
-/* Example button helper if you want a quick shortcut
-.btn-brand {
-  background: var(--color-brand);
-  color: #000;
-  border-radius: .5rem;
-  padding: .5rem .75rem;
-  font-weight: 600;
+  /* BUY */
+  .btn-buy {
+    color: var(--buy-text);
+    background: var(--buy-bg);
+    border-color: color-mix(in srgb, var(--buy-text) 20%, transparent);
+  }
+  .btn-buy:hover { filter: brightness(1.08); box-shadow: var(--ring-buy); }
+
+  /* SELL */
+  .btn-sell {
+    color: var(--sell-text);
+    background: var(--sell-bg);
+    border-color: color-mix(in srgb, var(--sell-text) 20%, transparent);
+  }
+  .btn-sell:hover { filter: brightness(1.08); box-shadow: var(--ring-sell); }
+
+  /* CREATE (same as BUY per your spec) */
+  .btn-create {
+    color: var(--create-text);
+    background: var(--create-bg);
+    border-color: color-mix(in srgb, var(--create-text) 20%, transparent);
+  }
+  .btn-create:hover { filter: brightness(1.08); box-shadow: var(--ring-create); }
 }
-*/

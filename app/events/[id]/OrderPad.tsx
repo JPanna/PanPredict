@@ -1,213 +1,146 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import TradeButton from '../../components/TradeButton'
 
 type Props = { eventId: string }
 
-type LmsrStateRow = { event_id: string; b: number; q_yes: number; q_no: number }
-type PositionRow  = { side: 'YES' | 'NO'; qty: number }
-
-const supabase = createClientComponentClient()
+type WalletRow = { points: number }
+type LmsrStateRow = { b: number; q_yes: number; q_no: number }
 
 export default function OrderPad({ eventId }: Props) {
-  const [qty, setQty] = useState<number>(1)
-  const [mode, setMode] = useState<'buy'|'sell'>('buy')
-  const [msg, setMsg] = useState<string | null>(null)
-  const [placing, setPlacing] = useState(false)
+  const supabase = createClientComponentClient()
 
+  const [qty, setQty] = useState<number>(1)
+  const [msg, setMsg] = useState<string | null>(null)
   const [points, setPoints] = useState<number | null>(null)
   const [state, setState] = useState<LmsrStateRow | null>(null)
-  const [posYes, setPosYes] = useState<number>(0)
-  const [posNo,  setPosNo ] = useState<number>(0)
+  const [loading, setLoading] = useState(false)
 
-  // load wallet, lmsr state, and my position
   useEffect(() => {
     let alive = true
     ;(async () => {
-      // wallet
-      {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!alive) return
-        if (!user) { setPoints(null) } else {
-          const { data: w } = await supabase
-            .from('wallets')
-            .select('points')
-            .eq('user_id', user.id)
-            .maybeSingle()
-          // if null the RPC will create one, but treat as 1000 for pre-check UI
-          setPoints(w?.points ?? 1000)
-        }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: w } = await supabase
+          .from('wallets')
+          .select('points')
+          .eq('user_id', user.id)
+          .single<WalletRow>()
+        if (alive) setPoints(w?.points ?? null)
       }
-      // state
-      {
-        const { data: st } = await supabase
-          .from('lmsr_state')
-          .select('*')
-          .eq('event_id', eventId)
-          .single<LmsrStateRow>()
-        if (!alive) return
-        setState(st ?? null)
-      }
-      // my position
-      {
-        const { data: ps } = await supabase
-          .from('positions')
-          .select('side, qty')
-          .eq('event_id', eventId)
-        if (!alive) return
-        const yes = (ps ?? []).find(p => p.side === 'YES')?.qty ?? 0
-        const no  = (ps ?? []).find(p => p.side === 'NO')?.qty  ?? 0
-        setPosYes(Number(yes))
-        setPosNo(Number(no))
-      }
+      const { data: st } = await supabase
+        .from('lmsr_state')
+        .select('b,q_yes,q_no')
+        .eq('event_id', eventId)
+        .single<LmsrStateRow>()
+      if (alive) setState(st ?? null)
     })()
-    return () => { alive = false }
+    return () => {
+      alive = false
+    }
   }, [eventId])
 
-  // LMSR price/cost helpers (binary)
-  const b   = Number(state?.b ?? 200)
-  const qy0 = Number(state?.q_yes ?? 0)
-  const qn0 = Number(state?.q_no  ?? 0)
-
-  const priceYes = useMemo(() => {
-    const ey = Math.exp(qy0 / b)
-    const en = Math.exp(qn0 / b)
+  const priceYes = (() => {
+    if (!state) return null
+    const { b, q_yes, q_no } = state
+    const ey = Math.exp(q_yes / (b || 1))
+    const en = Math.exp(q_no / (b || 1))
     return ey / (ey + en)
-  }, [qy0, qn0, b])
+  })()
+  const priceNo = priceYes != null ? 1 - priceYes : null
 
-  const priceNo = 1 - priceYes
-
-  function quoteCost(side: 'YES'|'NO', q: number): number {
-    // cost = C(q') - C(q), C(q) = b * ln(exp(qy/b) + exp(qn/b))
-    const ey0 = Math.exp(qy0 / b)
-    const en0 = Math.exp(qn0 / b)
-    const c0  = b * Math.log(ey0 + en0)
-
-    const qy1 = side === 'YES' ? qy0 + q : qy0
-    const qn1 = side === 'NO'  ? qn0 + q : qn0
-    const ey1 = Math.exp(qy1 / b)
-    const en1 = Math.exp(qn1 / b)
-    const c1  = b * Math.log(ey1 + en1)
-
-    return c1 - c0
-  }
-
-  const buyYesCost = useMemo(() => quoteCost('YES', Math.max(0, qty)), [qty, qy0, qn0, b])
-  const buyNoCost  = useMemo(() => quoteCost('NO',  Math.max(0, qty)), [qty, qy0, qn0, b])
-
-  const canBuyYes = points == null ? true : points >= buyYesCost
-  const canBuyNo  = points == null ? true : points >= buyNoCost
-
-  const canSellYes = posYes >= qty
-  const canSellNo  = posNo  >= qty
-
-  async function place(side: 'YES'|'NO') {
-    setMsg(null)
-    setPlacing(true)
+  async function place(side: 'YES' | 'NO') {
     try {
-      const signedQty = mode === 'buy' ? qty : -qty
-      const { data, error } = await supabase.rpc('place_order_lmsr', {
+      setMsg(null)
+      setLoading(true)
+      const { error } = await supabase.rpc('place_order_lmsr', {
         p_event: eventId,
         p_side: side,
-        p_qty: Number(signedQty),
+        p_qty: Number(qty),
       })
       if (error) throw error
-
-      // refresh wallet + position quickly
-      const { data: w } = await supabase
-        .from('wallets').select('points')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
-        .maybeSingle()
-      setPoints(w?.points ?? data?.new_points ?? points)
-
-      // re-pull my positions
-      const { data: ps } = await supabase
-        .from('positions')
-        .select('side, qty')
-        .eq('event_id', eventId)
-      const yes = (ps ?? []).find(p => p.side === 'YES')?.qty ?? 0
-      const no  = (ps ?? []).find(p => p.side === 'NO')?.qty  ?? 0
-      setPosYes(Number(yes))
-      setPosNo(Number(no))
-
-      setMsg('Order placed')
-    } catch (e:any) {
+      // Optional: refresh points/state
+      const [{ data: w }, { data: st }] = await Promise.all([
+        supabase.from('wallets').select('points').eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '').single<WalletRow>(),
+        supabase.from('lmsr_state').select('b,q_yes,q_no').eq('event_id', eventId).single<LmsrStateRow>(),
+      ])
+      setPoints(w?.points ?? points ?? null)
+      setState(st ?? state)
+    } catch (e: any) {
       setMsg(e.message ?? 'Order failed')
     } finally {
-      setPlacing(false)
+      setLoading(false)
     }
   }
 
   return (
-    <div className="bg-neutral-900 border border-okx-border rounded-xl p-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-neutral-400">
-          Wallet: <span className="text-neutral-200">{points ?? '—'} pts</span>
-        </div>
-        <div className="text-xs">
-          Price YES: {(priceYes*100).toFixed(1)}% &nbsp;·&nbsp; NO:{' '}
-          {(priceNo*100).toFixed(1)}%
-        </div>
-      </div>
+    <div className="rounded-xl border border-okx-border p-4">
+      <div className="text-sm text-neutral-400">Wallet</div>
+      <div className="text-lg mb-3">{points != null ? `${points} pts` : '—'}</div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <label className="text-sm text-neutral-400">Qty</label>
-        <input
-          type="number"
-          min={1}
-          value={qty}
-          onChange={(e)=>setQty(Math.max(1, Number(e.target.value)))}
-          className="w-24 bg-transparent border border-okx-border rounded-lg px-3 py-2"
-        />
-        <div className="ml-auto flex items-center gap-2 text-xs">
+      <div className="flex items-end gap-3 mb-3">
+        <div>
+          <label className="block text-sm text-neutral-400 mb-1">Qty</label>
+          <input
+            type="number"
+            min={1}
+            value={qty}
+            onChange={(e) => setQty(Number(e.target.value))}
+            className="w-24 bg-transparent border border-okx-border rounded-lg px-3 py-2"
+          />
+        </div>
+
+        {/* Small action pills using the same palette */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-neutral-400">
+            Price <strong>YES</strong>:{' '}
+            {priceYes != null ? `${(priceYes * 100).toFixed(1)}%` : '—'} ·{' '}
+            <strong>NO</strong>:{' '}
+            {priceNo != null ? `${(priceNo * 100).toFixed(1)}%` : '—'}
+          </span>
           <button
-            className={`px-2 py-1 rounded border ${mode==='buy' ? 'border-indigo-400 text-indigo-300' : 'border-okx-border text-neutral-300'}`}
-            onClick={()=>setMode('buy')}
+            type="button"
+            onClick={() => place('YES')}
+            className="btn btn-buy px-3 py-1 text-sm"
+            disabled={loading}
+            title="Buy YES"
           >
             Buy
           </button>
           <button
-            className={`px-2 py-1 rounded border ${mode==='sell' ? 'border-indigo-400 text-indigo-300' : 'border-okx-border text-neutral-300'}`}
-            onClick={()=>setMode('sell')}
+            type="button"
+            onClick={() => place('NO')}
+            className="btn btn-sell px-3 py-1 text-sm"
+            disabled={loading}
+            title="Buy NO"
           >
             Sell
           </button>
         </div>
       </div>
 
-      {/* my position */}
-      <div className="mt-2 text-xs text-neutral-400">
-        Your position — YES: <span className="text-neutral-200">{posYes}</span>
-        {' · '}
-        NO: <span className="text-neutral-200">{posNo}</span>
+      {/* Big primary buttons */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <TradeButton
+          label={loading ? 'Placing…' : 'Buy YES'}
+          kind="buy"
+          onClick={() => place('YES')}
+          disabled={loading}
+          className="w-full"
+        />
+        <TradeButton
+          label={loading ? 'Placing…' : 'Buy NO'}
+          kind="sell"
+          onClick={() => place('NO')}
+          disabled={loading}
+          className="w-full"
+        />
       </div>
 
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <button
-          disabled={placing || (mode==='buy' && !canBuyYes) || (mode==='sell' && !canSellYes)}
-          onClick={()=>place('YES')}
-          className="rounded-lg px-3 py-2 bg-indigo-600 disabled:bg-neutral-700"
-        >
-          {mode==='buy' ? 'Buy' : 'Sell'} YES
-          {mode==='buy' && points!=null && (
-            <span className="ml-2 text-xs opacity-70">({buyYesCost.toFixed(2)} pts)</span>
-          )}
-        </button>
+      {msg && <p className="text-sm text-red-400 mt-3">{msg}</p>}
 
-        <button
-          disabled={placing || (mode==='buy' && !canBuyNo) || (mode==='sell' && !canSellNo)}
-          onClick={()=>place('NO')}
-          className="rounded-lg px-3 py-2 bg-indigo-600 disabled:bg-neutral-700"
-        >
-          {mode==='buy' ? 'Buy' : 'Sell'} NO
-          {mode==='buy' && points!=null && (
-            <span className="ml-2 text-xs opacity-70">({buyNoCost.toFixed(2)} pts)</span>
-          )}
-        </button>
-      </div>
-
-      {msg && <p className="text-xs text-neutral-300 mt-3">{msg}</p>}
       <p className="text-xs text-neutral-500 mt-2">Points only. No money.</p>
     </div>
   )

@@ -49,24 +49,20 @@ export default function OrderPad({ eventId }: Props) {
     setPoints(w?.points ?? null)
   }
 
-  async function place(side: 'YES' | 'NO') {
+  async function place(side: 'YES' | 'NO', mode: 'buy' | 'sell') {
     setMsg(null)
 
-    if (!userId) {
-      setMsg('Please sign in to trade.')
-      return
-    }
-    if (!qty || qty <= 0) {
-      setMsg('Enter a quantity greater than 0.')
-      return
-    }
+    if (!userId) { setMsg('Please sign in to trade.'); return }
+    if (!qty || qty <= 0) { setMsg('Enter a quantity greater than 0.'); return }
+
+    const signedQty = mode === 'buy' ? Number(qty) : -Number(qty)
 
     try {
       setPlacing(true)
       const { error } = await supabase.rpc('place_order_lmsr', {
         p_event: eventId,
         p_side: side,
-        p_qty: Number(qty),
+        p_qty: signedQty,          // positive = buy, negative = sell back
       })
       if (error) {
         const m = (error.message || '').toUpperCase()
@@ -76,7 +72,7 @@ export default function OrderPad({ eventId }: Props) {
         return
       }
       await refreshWallet()
-      setMsg('Order placed ✅')
+      setMsg(mode === 'buy' ? 'Order placed ✅' : 'Sold ✅')
     } catch {
       setMsg('Couldn’t place order. Please try again.')
     } finally {
@@ -107,27 +103,50 @@ export default function OrderPad({ eventId }: Props) {
         min={1}
         value={qty}
         onChange={(e)=>setQty(Number(e.target.value))}
-        className="w-24 bg-transparent border border-okx-border rounded-lg px-3 py-2 mb-3"
+        className="w-24 bg-transparent border border-okx-border rounded-lg px-3 py-2 mb-4"
       />
 
+      {/* Two columns: YES and NO; each has BUY and SELL */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={()=>place('YES')}
-          className="btn btn-buy w-full"
-        >
-          {placing ? 'Placing…' : 'Buy YES'}
-        </button>
+        {/* YES side */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={()=>place('YES','buy')}
+            className="btn btn-buy w-full"
+          >
+            {placing ? 'Placing…' : 'Buy YES'}
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={()=>place('YES','sell')}
+            className="btn btn-sell w-full"
+          >
+            {placing ? 'Placing…' : 'Sell YES'}
+          </button>
+        </div>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={()=>place('NO')}
-          className="btn btn-sell w-full"
-        >
-          {placing ? 'Placing…' : 'Buy NO'}
-        </button>
+        {/* NO side */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={()=>place('NO','buy')}
+            className="btn btn-buy w-full"
+          >
+            {placing ? 'Placing…' : 'Buy NO'}
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={()=>place('NO','sell')}
+            className="btn btn-sell w-full"
+          >
+            {placing ? 'Placing…' : 'Sell NO'}
+          </button>
+        </div>
       </div>
 
       {msg && <p className="text-sm mt-3 text-red-400">{msg}</p>}

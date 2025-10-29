@@ -169,28 +169,36 @@ export default function MePage() {
   // ---------- RENDER ----------
   if (loading) return <div className="p-6">Loading…</div>
 
-  // Signed-out
-  if (!userId) {
-    return (
-      <div className="max-w-md mx-auto p-6">
-        <h1 className="text-xl font-semibold mb-4">Sign in</h1>
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e)=>setEmail(e.target.value)}
-          className="w-full bg-transparent border border-okx-border rounded-lg px-3 py-2 mb-3"
-        />
-        <button
-          onClick={sendMagicLink}
-          className="w-full bg-brand text-black rounded-lg py-2 font-medium"
-        >
-          Send magic link
-        </button>
-        {msg && <p className="text-sm text-neutral-400 mt-3">{msg}</p>}
-      </div>
-    )
-  }
+// Signed-out
+if (!userId) {
+  return (
+    <div className="max-w-md mx-auto p-6">
+      <h1 className="text-xl font-semibold mb-4">Sign in</h1>
+
+      <input
+        type="email"
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e)=>setEmail(e.target.value)}
+        className="w-full bg-transparent border border-okx-border rounded-lg px-3 py-2 mb-3"
+      />
+
+      <button
+        type="button"
+        onClick={sendMagicLink}
+        className="w-full rounded-lg py-2 font-medium bg-[#81E638] text-black hover:brightness-95"
+      >
+        Send magic link
+      </button>
+
+      {msg && (
+        <p className="text-sm mt-3" style={{ color: 'rgb(129, 230, 56)' }}>
+          {msg}
+        </p>
+      )}
+    </div>
+  )
+}
 
   // Signed-in
   return (

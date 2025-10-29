@@ -21,7 +21,7 @@ export default function Login() {
     <div className="max-w-sm mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-3">Sign in</h1>
       {sent ? (
-        <p>Check your email for a magic link.</p>
+        <p className="text-brand">Check your email for a sign-in link.</p>
       ) : (
         <>
           <input

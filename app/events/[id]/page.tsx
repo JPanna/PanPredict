@@ -120,29 +120,31 @@ export default function EventPage() {
   }, [id])
 
   // ----- chart series (0..1 prob) -----
-  type ChartPoint = { t: string; p: number }
+  type ChartPoint = { ts: number; p: number };
 
   const series: ChartPoint[] = useMemo(() => {
-    if (!orders) return []
-    const fmt = (iso: string) => new Date(iso).toLocaleTimeString()
+    if (!orders) return [];
 
-    const out: ChartPoint[] = orders.map((o) => ({
-      t: fmt(o.created_at),
-      p: Number(o.price_after), // 0..1
-    }))
+    // Build points from orders; use numeric timestamp so the chart can parse reliably
+    const out: ChartPoint[] = orders
+      .filter((o: any) => o?.created_at)
+      .map((o: any) => ({
+        ts: new Date(o.created_at).getTime(),      // <— numeric timestamp
+        p: Number(o.price_after),                  // 0..1
+      }))
+      .sort((a, b) => a.ts - b.ts);
 
-    // Seed a point if no trades yet
+    // If there are no orders yet, seed a baseline point from current LMSR state
     if (out.length === 0 && event && state) {
-      const b = Number(state.b)
-      const qy = Number(state.q_yes)
-      const qn = Number(state.q_no)
-      const diffOverB = (qy - qn) / (b || 1)
-      const p0 = Math.exp(diffOverB) / (1 + Math.exp(diffOverB)) // 0..1
-      out.push({ t: new Date(event.created_at).toLocaleTimeString(), p: p0 })
+      const b = Number(state.b);
+      const qy = Number(state.q_yes);
+      const qn = Number(state.q_no);
+      const p0 = Math.exp((qy - qn) / (b || 1)) / (1 + Math.exp((qy - qn) / (b || 1)));
+      out.push({ ts: new Date(event.created_at).getTime(), p: p0 });
     }
 
-    return out
-  }, [orders, event, state])
+    return out;
+  }, [orders, event, state]);
 
   // ----- delete handler -----
   async function onDelete() {

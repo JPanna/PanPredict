@@ -4,26 +4,20 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-type WalletRow = { points: number }
 type PositionRow = { event_id: string; side: 'YES' | 'NO'; qty: number }
 type EventRow = { id: string; title: string; status: string }
 type StateRow = { event_id: string; b: number; q_yes: number; q_no: number }
 
-export default function MeClient() {
+export default function PortfolioClient() {
   const supabase = createClientComponentClient()
 
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
 
-  const [points, setPoints] = useState<number | null>(null)
   const [positions, setPositions] = useState<PositionRow[]>([])
   const [eventsById, setEventsById] = useState<Record<string, EventRow>>({})
   const [stateByEvent, setStateByEvent] = useState<Record<string, StateRow>>({})
-
-  const [email, setEmail] = useState('')
-  const [msg, setMsg] = useState<string | null>(null)
-  const [err, setErr] = useState<string | null>(null)
 
   const yesPrice = (st?: StateRow): number => {
     if (!st) return 0.5
@@ -55,35 +49,17 @@ export default function MeClient() {
 
         const { data: { user } } = await supabase.auth.getUser()
         if (!alive) return
+
         if (!user) {
           setUserId(null)
-          setUserEmail(null)
+          setPositions([])
+          setEventsById({})
+          setStateByEvent({})
           setLoading(false)
           return
         }
         setUserId(user.id)
-        setUserEmail(user.email ?? null)
 
-        // wallet (create if missing)
-        const { data: w } = await supabase
-          .from('wallets')
-          .select('points')
-          .eq('user_id', user.id)
-          .single<WalletRow>()
-        if (!alive) return
-
-        if (w) setPoints(Number(w.points))
-        else {
-          const { data: w2, error: insErr } = await supabase
-            .from('wallets')
-            .insert({ user_id: user.id, points: 1000 })
-            .select('points')
-            .single<WalletRow>()
-          if (insErr) throw insErr
-          setPoints(Number(w2?.points ?? 1000))
-        }
-
-        // positions
         const { data: pos, error: pErr } = await supabase
           .from('positions')
           .select('event_id, side, qty')
@@ -100,7 +76,6 @@ export default function MeClient() {
           return
         }
 
-        // events
         const { data: evs, error: eErr } = await supabase
           .from('events')
           .select('id, title, status')
@@ -111,7 +86,6 @@ export default function MeClient() {
         for (const e of evs ?? []) evMap[e.id] = e
         setEventsById(evMap)
 
-        // state
         const { data: sts, error: sErr } = await supabase
           .from('lmsr_state')
           .select('event_id, b, q_yes, q_no')
@@ -123,7 +97,7 @@ export default function MeClient() {
         setStateByEvent(stMap)
       } catch (e: any) {
         if (!alive) return
-        setErr(e?.message ?? 'Failed to load profile')
+        setErr(e?.message ?? 'Failed to load portfolio')
       } finally {
         if (alive) setLoading(false)
       }
@@ -132,49 +106,15 @@ export default function MeClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function refreshAll() { location.reload() }
-
-  async function sendMagicLink() {
-    setMsg(null)
-    if (!email) { setMsg('Enter your email first'); return }
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: `${location.origin}/me` },
-      })
-      if (error) throw error
-      setMsg('Check your email for a sign-in link.')
-    } catch (e: any) {
-      setMsg(e.message ?? 'Failed to send magic link')
-    }
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut()
-    location.reload()
-  }
-
   if (loading) return <div className="p-6">Loading…</div>
 
   if (!userId) {
     return (
       <div className="max-w-md mx-auto p-6">
-        <h1 className="text-xl font-semibold mb-4">Sign in</h1>
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e)=>setEmail(e.target.value)}
-          className="w-full bg-transparent border border-okx-border rounded-lg px-3 py-2 mb-3"
-        />
-        <button
-          type="button"
-          onClick={sendMagicLink}
-          className="w-full rounded-lg py-2 font-medium bg-[#81E638] text-black hover:brightness-95"
-        >
-          Send magic link
-        </button>
-        {msg && <p className="text-sm mt-3" style={{ color: 'rgb(129, 230, 56)' }}>{msg}</p>}
+        <h1 className="text-xl font-semibold mb-3">Portfolio</h1>
+        <p className="text-sm text-neutral-400 mb-4">
+          You’re signed out. Go to <Link href="/me" className="underline">/me</Link> to sign in.
+        </p>
       </div>
     )
   }
@@ -182,13 +122,8 @@ export default function MeClient() {
   return (
     <div className="max-w-xl mx-auto p-6 space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Account</h1>
-        <button
-          onClick={refreshAll}
-          className="text-xs px-3 py-1 rounded-lg border border-okx-border hover:bg-neutral-800"
-        >
-          Refresh
-        </button>
+        <h1 className="text-xl font-semibold">Portfolio</h1>
+        <div className="text-sm text-neutral-400">Est. total value: {totalValue}</div>
       </div>
 
       {err && (
@@ -197,33 +132,12 @@ export default function MeClient() {
         </div>
       )}
 
-      <div className="rounded-xl border border-okx-border p-4">
-        <div className="text-sm text-neutral-400">Signed in as</div>
-        <div className="text-lg break-all">{userEmail ?? userId}</div>
-      </div>
-
-      <div className="rounded-xl border border-okx-border p-4 flex items-center justify-between">
-        <div>
-          <div className="text-sm text-neutral-400">Points</div>
-          <div className="text-2xl">{points ?? '—'}</div>
+      {!positions.length ? (
+        <div className="rounded-xl border border-okx-border p-4 text-sm text-neutral-400">
+          No positions yet.
         </div>
-        <Link
-          href="/portfolio"
-          className="px-3 py-2 rounded-lg border border-okx-border hover:bg-neutral-800"
-        >
-          Portfolio
-        </Link>
-      </div>
-
-      <div className="rounded-xl border border-okx-border p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-medium">Your Positions</div>
-          <div className="text-sm text-neutral-400">Est. value: {totalValue}</div>
-        </div>
-
-        {!positions.length ? (
-          <div className="text-sm text-neutral-400">No positions yet.</div>
-        ) : (
+      ) : (
+        <div className="rounded-xl border border-okx-border p-4">
           <ul className="space-y-2">
             {positions.map((p, i) => {
               const ev = eventsById[p.event_id]
@@ -245,15 +159,8 @@ export default function MeClient() {
               )
             })}
           </ul>
-        )}
-      </div>
-
-      <button
-        onClick={signOut}
-        className="text-sm text-neutral-300 border border-okx-border rounded-lg px-3 py-2 hover:bg-neutral-800"
-      >
-        Sign out
-      </button>
+        </div>
+      )}
     </div>
   )
 }
